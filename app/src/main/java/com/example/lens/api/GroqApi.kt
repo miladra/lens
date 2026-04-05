@@ -11,7 +11,17 @@ data class GroqRequest(
 
 data class GroqMessage(
     val role: String,
-    val content: String
+    val content: Any // Can be String or List<GroqContent>
+)
+
+data class GroqContent(
+    val type: String,
+    val text: String? = null,
+    val image_url: GroqImageUrl? = null
+)
+
+data class GroqImageUrl(
+    val url: String
 )
 
 data class GroqResponse(
@@ -19,7 +29,12 @@ data class GroqResponse(
 )
 
 data class GroqChoice(
-    val message: GroqMessage
+    val message: GroqResponseMessage
+)
+
+data class GroqResponseMessage(
+    val role: String,
+    val content: String
 )
 
 interface GroqApi {

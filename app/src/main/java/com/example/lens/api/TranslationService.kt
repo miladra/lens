@@ -2,6 +2,7 @@ package com.example.lens.api
 
 import android.graphics.Bitmap
 import com.example.lens.data.Config
+import com.example.lens.data.TranslationProvider
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import okhttp3.OkHttpClient
@@ -84,6 +85,18 @@ class TranslationService {
         context: String,
         config: Config
     ): String {
+        return if (config.preferredProvider == TranslationProvider.GEMINI) {
+            explainWithGemini(word, context, config)
+        } else {
+            explainWithGroq(word, context, config)
+        }
+    }
+
+    private suspend fun explainWithGemini(
+        word: String,
+        context: String,
+        config: Config
+    ): String {
         val generativeModel = GenerativeModel(
             modelName = config.geminiModel,
             apiKey = config.geminiApiKey
@@ -91,5 +104,22 @@ class TranslationService {
         val prompt = "Explain the word '$word' in the context of '$context' in ${config.explanationLanguage}. Be concise."
         val response = generativeModel.generateContent(prompt)
         return response.text ?: "Explanation failed"
+    }
+
+    private suspend fun explainWithGroq(
+        word: String,
+        context: String,
+        config: Config
+    ): String {
+        val prompt = "Explain the word '$word' in the context of '$context' in ${config.explanationLanguage}. Be concise."
+        val request = GroqRequest(
+            model = config.groqModel,
+            messages = listOf(
+                GroqMessage(role = "system", content = "You are a helpful assistant providing concise word explanations."),
+                GroqMessage(role = "user", content = prompt)
+            )
+        )
+        val response = groqApi.getCompletion("Bearer ${config.groqApiKey}", request)
+        return response.choices.firstOrNull()?.message?.content ?: "Explanation failed"
     }
 }

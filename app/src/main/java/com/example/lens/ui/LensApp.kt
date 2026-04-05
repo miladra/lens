@@ -140,29 +140,37 @@ fun LensApp(viewModel: LensViewModel) {
                 minLines = 3
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(onClick = { viewModel.translateText(inputText) }) {
-                    Text("Translate")
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(onClick = { showCamera = true }) {
-                    Text("Camera")
+                Button(
+                    onClick = { viewModel.translateText(inputText) },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Translate", maxLines = 1)
                 }
-                Button(onClick = { imagePickerLauncher.launch("image/*") }) {
-                    Text("Gallery")
+                
+                Button(
+                    onClick = { showCamera = true },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Camera", maxLines = 1)
                 }
+                
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text("Gallery", maxLines = 1)
+                }
+                
                 Button(
                     onClick = {
                         if (isRecording) {
@@ -173,9 +181,11 @@ fun LensApp(viewModel: LensViewModel) {
                             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
-                    colors = if (isRecording) ButtonDefaults.buttonColors(containerColor = Color.Red) else ButtonDefaults.buttonColors()
+                    modifier = Modifier.weight(1f),
+                    colors = if (isRecording) ButtonDefaults.buttonColors(containerColor = Color.Red) else ButtonDefaults.buttonColors(),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
-                    Text(if (isRecording) "Stop Audio" else "Record Audio")
+                    Text(if (isRecording) "Stop" else "Audio", maxLines = 1)
                 }
             }
 
@@ -194,6 +204,11 @@ fun LensApp(viewModel: LensViewModel) {
                         .padding(top = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Translated Text (Click a word for ${config.explanationLanguage} explanation):",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         val annotatedText = buildAnnotatedString {

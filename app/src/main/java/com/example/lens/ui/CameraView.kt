@@ -1,6 +1,5 @@
 package com.example.lens.ui
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.util.Log
@@ -25,7 +24,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -95,7 +93,7 @@ fun CameraView(
                 .align(Alignment.TopStart)
                 .padding(16.dp)
         ) {
-            Text("Back")
+            Text("Cancel")
         }
     }
 }

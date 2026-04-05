@@ -3,6 +3,8 @@ package com.example.lens.ui
 import android.Manifest
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +52,7 @@ fun LensApp(viewModel: LensViewModel) {
 
     var showConfig by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
+    var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isRecording by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
     
@@ -63,7 +66,17 @@ fun LensApp(viewModel: LensViewModel) {
         uri?.let {
             val inputStream: InputStream? = context.contentResolver.openInputStream(it)
             val bitmap = BitmapFactory.decodeStream(inputStream)
-            viewModel.translateImage(bitmap)
+            inputStream?.close()
+
+            // Handle Gallery Image Rotation
+            val rotatedBitmap = bitmap?.let { b ->
+                val rotation = getUriOrientation(context, it)
+                if (rotation != 0f) {
+                    val matrix = Matrix().apply { postRotate(rotation) }
+                    Bitmap.createBitmap(b, 0, 0, b.width, b.height, matrix, true)
+                } else b
+            }
+            capturedBitmap = rotatedBitmap
         }
     }
 
@@ -79,10 +92,22 @@ fun LensApp(viewModel: LensViewModel) {
     if (showCamera) {
         CameraView(
             onImageCaptured = { bitmap ->
-                viewModel.translateImage(bitmap)
+                capturedBitmap = bitmap
                 showCamera = false
             },
             onClose = { showCamera = false }
+        )
+        return
+    }
+
+    capturedBitmap?.let { bitmap ->
+        CropView(
+            bitmap = bitmap,
+            onCropped = { cropped ->
+                viewModel.translateImage(cropped)
+                capturedBitmap = null
+            },
+            onCancel = { capturedBitmap = null }
         )
         return
     }
@@ -169,11 +194,6 @@ fun LensApp(viewModel: LensViewModel) {
                         .padding(top = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "Translated Text (Click a word for ${config.explanationLanguage} explanation):",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         val annotatedText = buildAnnotatedString {
@@ -227,6 +247,28 @@ fun LensApp(viewModel: LensViewModel) {
                 }
             )
         }
+    }
+}
+
+fun getUriOrientation(context: android.content.Context, uri: Uri): Float {
+    var inputStream: InputStream? = null
+    try {
+        inputStream = context.contentResolver.openInputStream(uri)
+        val exifInterface = inputStream?.let { ExifInterface(it) }
+        val orientation = exifInterface?.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        ) ?: ExifInterface.ORIENTATION_NORMAL
+        return when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+    } catch (e: Exception) {
+        return 0f
+    } finally {
+        inputStream?.close()
     }
 }
 
@@ -336,7 +378,7 @@ fun ModelOptionDropdown(label: String, selectedModelValue: String, options: List
             modifier = Modifier.fillMaxWidth(),
             readOnly = true,
             trailingIcon = {
-                Icon(Icons.Default.ArrowDropDown, "Dropdown", Modifier.clickable { expanded = true })
+                Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown", modifier = Modifier.clickable { expanded = true })
             }
         )
         DropdownMenu(
@@ -369,7 +411,7 @@ fun ModelDropdown(label: String, selectedModel: String, models: List<String>, on
             modifier = Modifier.fillMaxWidth(),
             readOnly = true,
             trailingIcon = {
-                Icon(Icons.Default.ArrowDropDown, "Dropdown", Modifier.clickable { expanded = true })
+                Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown", modifier = Modifier.clickable { expanded = true })
             }
         )
         DropdownMenu(

@@ -1,6 +1,7 @@
 package com.example.lens.api
 
 import android.graphics.Bitmap
+import android.util.Log
 import com.example.lens.data.Config
 import com.example.lens.data.TranslationProvider
 import com.google.ai.client.generativeai.GenerativeModel
@@ -48,8 +49,19 @@ class TranslationService {
         }
 
         val response = if (audioFile != null) {
+            if (!audioFile.exists()) {
+                throw Exception("Audio file not found at ${audioFile.absolutePath}")
+            }
+            val audioBytes = audioFile.readBytes()
+            Log.d("TranslationService", "Audio file size: ${audioBytes.size} bytes")
+            
+            // 44 bytes is the size of an empty WAV header. If it's this small, nothing was recorded.
+            if (audioBytes.size <= 44) {
+                throw Exception("Recorded audio is empty. Please ensure you granted microphone permissions and that there was sound to capture.")
+            }
+            
             generativeModel.generateContent(content {
-                blob("audio/mp4", audioFile.readBytes())
+                blob("audio/wav", audioBytes)
                 text(prompt)
             })
         } else if (bitmap != null) {

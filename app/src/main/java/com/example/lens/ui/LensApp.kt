@@ -1,18 +1,25 @@
 package com.example.lens.ui
 
 import android.Manifest
+import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -34,8 +40,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.lens.audio.AudioRecorder
+import androidx.core.content.ContextCompat
+import com.example.lens.audio.AudioCaptureService
 import com.example.lens.data.Config
 import com.example.lens.data.TranslationProvider
 import java.io.File
@@ -57,8 +63,28 @@ fun LensApp(viewModel: LensViewModel) {
     var inputText by remember { mutableStateOf("") }
     
     val context = LocalContext.current
-    val recorder = remember { AudioRecorder(context) }
-    val audioFile = remember { File(context.cacheDir, "audio_record.m4a") }
+    val audioFile = remember { File(context.cacheDir, "audio_record.wav") }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == AudioCaptureService.ACTION_FINISHED) {
+                    viewModel.translateAudio(audioFile)
+                    isRecording = false
+                }
+            }
+        }
+        val filter = IntentFilter(AudioCaptureService.ACTION_FINISHED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+        } else {
+            context.registerReceiver(receiver, filter)
+        }
+
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -68,7 +94,6 @@ fun LensApp(viewModel: LensViewModel) {
             val bitmap = BitmapFactory.decodeStream(inputStream)
             inputStream?.close()
 
-            // Handle Gallery Image Rotation
             val rotatedBitmap = bitmap?.let { b ->
                 val rotation = getUriOrientation(context, it)
                 if (rotation != 0f) {
@@ -80,12 +105,42 @@ fun LensApp(viewModel: LensViewModel) {
         }
     }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
+    val mediaProjectionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val serviceIntent = Intent(context, AudioCaptureService::class.java).apply {
+                action = AudioCaptureService.ACTION_START
+                putExtra(AudioCaptureService.EXTRA_RESULT_DATA, result.data)
+                putExtra(AudioCaptureService.EXTRA_FILE_PATH, audioFile.absolutePath)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
             isRecording = true
-            recorder.start(audioFile)
+        } else {
+            Toast.makeText(context, "System audio permission denied. Recording cancelled.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val micGranted = permissions[Manifest.permission.RECORD_AUDIO] ?: false
+        val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
+        } else true
+
+        if (micGranted && notificationGranted) {
+            val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+        } else {
+            val missing = mutableListOf<String>()
+            if (!micGranted) missing.add("Microphone")
+            if (!notificationGranted) missing.add("Notifications")
+            Toast.makeText(context, "Missing permissions: ${missing.joinToString(", ")}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -114,13 +169,14 @@ fun LensApp(viewModel: LensViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Lens Translator") },
+            CenterAlignedTopAppBar(
+                title = { Text("Lens", style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     IconButton(onClick = { showConfig = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
-                }
+                },
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         }
     ) { padding ->
@@ -174,11 +230,26 @@ fun LensApp(viewModel: LensViewModel) {
                 Button(
                     onClick = {
                         if (isRecording) {
-                            recorder.stop()
-                            isRecording = false
-                            viewModel.translateAudio(audioFile)
+                            val serviceIntent = Intent(context, AudioCaptureService::class.java).apply {
+                                action = AudioCaptureService.ACTION_STOP
+                            }
+                            context.startService(serviceIntent)
                         } else {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            
+                            val allGranted = permissions.all {
+                                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+                            }
+
+                            if (allGranted) {
+                                val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                            } else {
+                                permissionLauncher.launch(permissions.toTypedArray())
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -205,7 +276,7 @@ fun LensApp(viewModel: LensViewModel) {
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            "Translated Text (Click a word for ${config.explanationLanguage} explanation):",
+                            "Translation:",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -265,7 +336,7 @@ fun LensApp(viewModel: LensViewModel) {
     }
 }
 
-fun getUriOrientation(context: android.content.Context, uri: Uri): Float {
+fun getUriOrientation(context: Context, uri: Uri): Float {
     var inputStream: InputStream? = null
     try {
         inputStream = context.contentResolver.openInputStream(uri)
@@ -305,12 +376,10 @@ fun ConfigDialog(
     var groqKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
-        GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
-        GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
-        GeminiModelOption("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),
         GeminiModelOption("gemini-2.0-flash", "Gemini 2.0 Flash"),
         GeminiModelOption("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite"),
-        GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT")
+        GeminiModelOption("gemini-1.5-pro", "Gemini 1.5 Pro"),
+        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash")
     )
     val groqModels = listOf("llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768")
 
@@ -336,7 +405,7 @@ fun ConfigDialog(
                     trailingIcon = {
                         val icon = if (geminiKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
                         IconButton(onClick = { geminiKeyVisible = !geminiKeyVisible }) {
-                            Icon(icon, contentDescription = if (geminiKeyVisible) "Hide API Key" else "Show API Key")
+                            Icon(icon, contentDescription = "Toggle visibility")
                         }
                     }
                 )
@@ -353,7 +422,7 @@ fun ConfigDialog(
                     trailingIcon = {
                         val icon = if (groqKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
                         IconButton(onClick = { groqKeyVisible = !groqKeyVisible }) {
-                            Icon(icon, contentDescription = if (groqKeyVisible) "Hide API Key" else "Show API Key")
+                            Icon(icon, contentDescription = "Toggle visibility")
                         }
                     }
                 )

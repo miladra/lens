@@ -324,7 +324,6 @@ fun LensApp(viewModel: LensViewModel) {
         explanation?.let {
             AlertDialog(
                 onDismissRequest = { viewModel.clearExplanation() },
-                title = { Text("Word Explanation") },
                 text = { Text(it) },
                 confirmButton = {
                     TextButton(onClick = { viewModel.clearExplanation() }) {
@@ -376,9 +375,6 @@ fun ConfigDialog(
     var groqKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
-        GeminiModelOption("gemini-3.1-pro", "Gemini 3.1 Pro"),
-        GeminiModelOption("gemini-3.0-flash", "Gemini 3 Flash"),
-        GeminiModelOption("gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite"),
         GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
         GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
         GeminiModelOption("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),

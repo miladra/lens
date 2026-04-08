@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.lens.api.TranslationService
 import com.example.lens.data.Config
 import com.example.lens.data.ConfigStore
+import com.example.lens.data.HistoryItem
 import com.example.lens.data.TranslationProvider
 import com.example.lens.data.TranslationResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,9 +30,18 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
     private val _explanation = MutableStateFlow<String?>(null)
     val explanation: StateFlow<String?> = _explanation.asStateFlow()
 
+    private val _history = MutableStateFlow(configStore.getHistory())
+    val history: StateFlow<List<HistoryItem>> = _history.asStateFlow()
+
     fun updateConfig(newConfig: Config) {
         _config.value = newConfig
         configStore.saveConfig(newConfig)
+    }
+
+    private fun addToHistory(original: String, translated: String) {
+        val item = HistoryItem(originalText = original, translatedText = translated)
+        configStore.addHistoryItem(item)
+        _history.value = configStore.getHistory()
     }
 
     fun translateText(text: String) {
@@ -47,6 +57,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
                     translationService.translateWithGemini(text, null, null, _config.value)
                 }
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
+                addToHistory(text, result)
             } catch (e: Exception) {
                 _translationResult.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -59,6 +70,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
             try {
                 val result = translationService.translateWithGemini("", bitmap, null, _config.value)
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
+                addToHistory("[Image]", result)
             } catch (e: Exception) {
                 _translationResult.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -71,6 +83,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
             try {
                 val result = translationService.translateWithGemini("", null, file, _config.value)
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
+                addToHistory("[Audio]", result)
             } catch (e: Exception) {
                 _translationResult.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -91,7 +104,21 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         }
     }
 
+    fun selectHistoryItem(item: HistoryItem) {
+        _translationResult.update { it.copy(translatedText = item.translatedText, isLoading = false, error = null) }
+    }
+
     fun clearExplanation() {
         _explanation.value = null
+    }
+
+    fun deleteHistoryItem(id: Long) {
+        configStore.removeHistoryItem(id)
+        _history.value = configStore.getHistory()
+    }
+
+    fun clearHistory() {
+        configStore.saveHistory(emptyList())
+        _history.value = emptyList()
     }
 }

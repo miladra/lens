@@ -19,11 +19,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -38,14 +43,19 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.lens.audio.AudioCaptureService
 import com.example.lens.data.Config
+import com.example.lens.data.HistoryItem
 import com.example.lens.data.TranslationProvider
 import java.io.File
 import java.io.InputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class GeminiModelOption(val value: String, val label: String)
 
@@ -55,8 +65,10 @@ fun LensApp(viewModel: LensViewModel) {
     val config by viewModel.config.collectAsState()
     val translationResult by viewModel.translationResult.collectAsState()
     val explanation by viewModel.explanation.collectAsState()
+    val history by viewModel.history.collectAsState()
 
     var showConfig by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     var showCamera by remember { mutableStateOf(false) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isRecording by remember { mutableStateOf(false) }
@@ -172,6 +184,9 @@ fun LensApp(viewModel: LensViewModel) {
             CenterAlignedTopAppBar(
                 title = { Text("Lens", style = MaterialTheme.typography.titleMedium) },
                 actions = {
+                    IconButton(onClick = { showHistory = true }) {
+                        Icon(Icons.Default.History, contentDescription = "History")
+                    }
                     IconButton(onClick = { showConfig = true }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
@@ -321,6 +336,26 @@ fun LensApp(viewModel: LensViewModel) {
             )
         }
 
+        if (showHistory) {
+            HistoryDialog(
+                history = history,
+                onDismiss = { showHistory = false },
+                onSelectItem = {
+                    viewModel.selectHistoryItem(it)
+                    if (it.originalText != "[Image]" && it.originalText != "[Audio]") {
+                        inputText = it.originalText
+                    }
+                    showHistory = false
+                },
+                onDeleteItem = {
+                    viewModel.deleteHistoryItem(it.id)
+                },
+                onClearHistory = {
+                    viewModel.clearHistory()
+                }
+            )
+        }
+
         explanation?.let {
             AlertDialog(
                 onDismissRequest = { viewModel.clearExplanation() },
@@ -355,6 +390,89 @@ fun getUriOrientation(context: Context, uri: Uri): Float {
     } finally {
         inputStream?.close()
     }
+}
+
+@Composable
+fun HistoryDialog(
+    history: List<HistoryItem>,
+    onDismiss: () -> Unit,
+    onSelectItem: (HistoryItem) -> Unit,
+    onDeleteItem: (HistoryItem) -> Unit,
+    onClearHistory: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("History")
+                if (history.isNotEmpty()) {
+                    IconButton(onClick = onClearHistory) {
+                        Icon(Icons.Default.Delete, contentDescription = "Clear All History")
+                    }
+                }
+            }
+        },
+        text = {
+            if (history.isEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                    Text("No history yet")
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    items(history, key = { it.id }) { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectItem(item) }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (item.originalText.length > 50) item.originalText.take(50) + "..." else item.originalText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = item.translatedText,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                val date = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(item.timestamp))
+                                Text(
+                                    text = date,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.Gray
+                                )
+                            }
+                            IconButton(onClick = { onDeleteItem(item) }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Delete item",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable

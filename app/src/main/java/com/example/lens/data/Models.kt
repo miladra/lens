@@ -19,3 +19,10 @@ data class Config(
     val explanationLanguage: String = "Farsi",
     val preferredProvider: TranslationProvider = TranslationProvider.GEMINI
 )
+
+data class HistoryItem(
+    val id: Long = System.currentTimeMillis(),
+    val originalText: String = "",
+    val translatedText: String,
+    val timestamp: Long = System.currentTimeMillis()
+)

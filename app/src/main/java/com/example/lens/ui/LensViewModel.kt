@@ -50,11 +50,10 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
-                val useGroq = _config.value.preferredProvider == TranslationProvider.GROQ
-                val result = if (useGroq) {
-                    translationService.translateWithGroq(text, _config.value)
-                } else {
-                    translationService.translateWithGemini(text, null, null, _config.value)
+                val result = when (_config.value.preferredProvider) {
+                    TranslationProvider.GEMINI -> translationService.translateWithGemini(text, null, null, _config.value)
+                    TranslationProvider.GROQ -> translationService.translateWithGroq(text, _config.value)
+                    TranslationProvider.OPENROUTER -> translationService.translateWithOpenRouter(text, _config.value)
                 }
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
                 addToHistory(text, result)
@@ -68,6 +67,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
+                // Currently only Gemini supports images in this app's implementation
                 val result = translationService.translateWithGemini("", bitmap, null, _config.value)
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
                 addToHistory("[Image]", result)
@@ -81,6 +81,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
+                // Currently only Gemini supports audio in this app's implementation
                 val result = translationService.translateWithGemini("", null, file, _config.value)
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
                 addToHistory("[Audio]", result)

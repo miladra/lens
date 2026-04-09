@@ -483,14 +483,19 @@ fun ConfigDialog(
 ) {
     var geminiKey by remember { mutableStateOf(config.geminiApiKey) }
     var groqKey by remember { mutableStateOf(config.groqApiKey) }
+    var openRouterKey by remember { mutableStateOf(config.openRouterApiKey) }
+    
     var geminiModel by remember { mutableStateOf(config.geminiModel) }
     var groqModel by remember { mutableStateOf(config.groqModel) }
+    var openRouterModel by remember { mutableStateOf(config.openRouterModel) }
+    
     var targetLang by remember { mutableStateOf(config.targetLanguage) }
     var explainLang by remember { mutableStateOf(config.explanationLanguage) }
     var preferredProvider by remember { mutableStateOf(config.preferredProvider) }
 
     var geminiKeyVisible by remember { mutableStateOf(false) }
     var groqKeyVisible by remember { mutableStateOf(false) }
+    var openRouterKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
         GeminiModelOption("gemini-3.1-pro", "Gemini 3.1 Pro"),
@@ -504,6 +509,7 @@ fun ConfigDialog(
         GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT")
     )
     val groqModels = listOf("llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768")
+    val openRouterModels = listOf("google/gemma-4-31b-it:free", "openrouter/auto")
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -552,13 +558,40 @@ fun ConfigDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                OutlinedTextField(
+                    value = openRouterKey,
+                    onValueChange = { openRouterKey = it },
+                    label = { Text("OpenRouter API Key") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (openRouterKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        val icon = if (openRouterKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                        IconButton(onClick = { openRouterKeyVisible = !openRouterKeyVisible }) {
+                            Icon(icon, contentDescription = "Toggle visibility")
+                        }
+                    }
+                )
+                ModelDropdown(label = "OpenRouter Model", selectedModel = openRouterModel, models = openRouterModels) { openRouterModel = it }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedTextField(value = targetLang, onValueChange = { targetLang = it }, label = { Text("Target Language") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = explainLang, onValueChange = { explainLang = it }, label = { Text("Explanation Language (3rd)") }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(Config(geminiKey, groqKey, geminiModel, groqModel, targetLang, explainLang, preferredProvider))
+                onSave(Config(
+                    geminiApiKey = geminiKey,
+                    groqApiKey = groqKey,
+                    openRouterApiKey = openRouterKey,
+                    geminiModel = geminiModel,
+                    groqModel = groqModel,
+                    openRouterModel = openRouterModel,
+                    targetLanguage = targetLang,
+                    explanationLanguage = explainLang,
+                    preferredProvider = preferredProvider
+                ))
             }) {
                 Text("Save")
             }

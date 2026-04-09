@@ -1,7 +1,7 @@
 package com.example.lens.data
 
 enum class TranslationProvider {
-    GEMINI, GROQ
+    GEMINI, GROQ, OPENROUTER
 }
 
 data class TranslationResult(
@@ -13,8 +13,10 @@ data class TranslationResult(
 data class Config(
     val geminiApiKey: String = "",
     val groqApiKey: String = "",
+    val openRouterApiKey: String = "",
     val geminiModel: String = "gemini-2.5-flash",
     val groqModel: String = "llama-3.3-70b-versatile",
+    val openRouterModel: String = "google/gemma-4-31b-it:free",
     val targetLanguage: String = "English",
     val explanationLanguage: String = "Farsi",
     val preferredProvider: TranslationProvider = TranslationProvider.GEMINI

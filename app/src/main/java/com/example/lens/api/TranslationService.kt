@@ -14,7 +14,7 @@ import java.io.File
 
 class TranslationService {
 
-    private fun getRetrofit(): Retrofit {
+    private fun getRetrofit(baseUrl: String): Retrofit {
         val logging = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
@@ -23,13 +23,14 @@ class TranslationService {
             .build()
 
         return Retrofit.Builder()
-            .baseUrl("https://api.groq.com/openai/")
+            .baseUrl(baseUrl)
             .addConverterFactory(GsonConverterFactory.create())
             .client(client)
             .build()
     }
 
-    private val groqApi = getRetrofit().create(GroqApi::class.java)
+    private val groqApi = getRetrofit("https://api.groq.com/openai/").create(GroqApi::class.java)
+    private val openRouterApi = getRetrofit("https://openrouter.ai/api/v1/").create(OpenRouterApi::class.java)
 
     suspend fun translateWithGemini(
         text: String,
@@ -92,15 +93,31 @@ class TranslationService {
         return response.choices.firstOrNull()?.message?.content ?: "Translation failed"
     }
 
+    suspend fun translateWithOpenRouter(
+        text: String,
+        config: Config
+    ): String {
+        val prompt = "Translate the following text into ${config.targetLanguage}: $text. Detect the source language automatically. Only provide the translated text."
+        val request = OpenRouterRequest(
+            model = config.openRouterModel,
+            messages = listOf(
+                OpenRouterMessage(role = "system", content = "You are a translator. Automatically detect the source language and translate into the target language."),
+                OpenRouterMessage(role = "user", content = prompt)
+            )
+        )
+        val response = openRouterApi.getCompletion(apiKey = "Bearer ${config.openRouterApiKey}", request = request)
+        return response.choices.firstOrNull()?.message?.content ?: "Translation failed"
+    }
+
     suspend fun explainWord(
         word: String,
         context: String,
         config: Config
     ): String {
-        return if (config.preferredProvider == TranslationProvider.GEMINI) {
-            explainWithGemini(word, context, config)
-        } else {
-            explainWithGroq(word, context, config)
+        return when (config.preferredProvider) {
+            TranslationProvider.GEMINI -> explainWithGemini(word, context, config)
+            TranslationProvider.GROQ -> explainWithGroq(word, context, config)
+            TranslationProvider.OPENROUTER -> explainWithOpenRouter(word, context, config)
         }
     }
 
@@ -132,6 +149,23 @@ class TranslationService {
             )
         )
         val response = groqApi.getCompletion("Bearer ${config.groqApiKey}", request)
+        return response.choices.firstOrNull()?.message?.content ?: "Explanation failed"
+    }
+
+    private suspend fun explainWithOpenRouter(
+        word: String,
+        context: String,
+        config: Config
+    ): String {
+        val prompt = "Explain the word '$word' in the context of '$context' in ${config.explanationLanguage}. Be concise."
+        val request = OpenRouterRequest(
+            model = config.openRouterModel,
+            messages = listOf(
+                OpenRouterMessage(role = "system", content = "You are a helpful assistant providing concise word explanations."),
+                OpenRouterMessage(role = "user", content = prompt)
+            )
+        )
+        val response = openRouterApi.getCompletion(apiKey = "Bearer ${config.openRouterApiKey}", request = request)
         return response.choices.firstOrNull()?.message?.content ?: "Explanation failed"
     }
 }

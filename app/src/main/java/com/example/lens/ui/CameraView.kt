@@ -10,16 +10,20 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -60,42 +64,86 @@ fun CameraView(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier.fillMaxSize()
+        )
 
-        Button(
-            onClick = {
-                imageCapture.takePicture(
-                    cameraExecutor,
-                    object : ImageCapture.OnImageCapturedCallback() {
-                        override fun onCaptureSuccess(image: ImageProxy) {
-                            val bitmap = image.toBitmap().rotate(image.imageInfo.rotationDegrees.toFloat())
-                            onImageCaptured(bitmap)
-                            image.close()
-                        }
+        // Top Controls
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+            }
+            
+            IconButton(
+                onClick = { /* Toggle Flash */ },
+                modifier = Modifier.background(Color.Black.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(Icons.Default.FlashOn, contentDescription = "Flash", tint = Color.White)
+            }
+        }
 
-                        override fun onError(exception: ImageCaptureException) {
-                            Log.e("CameraView", "Photo capture failed: ${exception.message}", exception)
-                        }
-                    }
-                )
-            },
+        // Bottom Shutter
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 48.dp)
         ) {
-            Text("Take Photo")
-        }
+            ShutterButton(
+                onClick = {
+                    imageCapture.takePicture(
+                        cameraExecutor,
+                        object : ImageCapture.OnImageCapturedCallback() {
+                            override fun onCaptureSuccess(image: ImageProxy) {
+                                val bitmap = image.toBitmap().rotate(image.imageInfo.rotationDegrees.toFloat())
+                                onImageCaptured(bitmap)
+                                image.close()
+                            }
 
-        Button(
-            onClick = onClose,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(16.dp)
-        ) {
-            Text("Cancel")
+                            override fun onError(exception: ImageCaptureException) {
+                                Log.e("CameraView", "Photo capture failed: ${exception.message}", exception)
+                            }
+                        }
+                    )
+                }
+            )
         }
+        
+        Text(
+            "Point at text to translate",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.7f),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 20.dp)
+        )
     }
+}
+
+@Composable
+fun ShutterButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(80.dp)
+            .border(4.dp, Color.White, CircleShape)
+            .padding(8.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .clickable(onClick = onClick)
+    )
 }
 
 private fun ImageProxy.toBitmap(): Bitmap {

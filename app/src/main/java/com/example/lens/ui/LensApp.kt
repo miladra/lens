@@ -10,43 +10,111 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
-import android.media.ExifInterface
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import com.example.lens.audio.AudioCaptureService
 import com.example.lens.data.Config
 import com.example.lens.data.HistoryItem
@@ -75,7 +143,22 @@ fun LensApp(viewModel: LensViewModel) {
     var inputText by remember { mutableStateOf("") }
     
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val audioFile = remember { File(context.cacheDir, "audio_record.wav") }
+
+    val sheetState = rememberModalBottomSheetState()
+
+    // Animation for recording state
+    val infiniteTransition = rememberInfiniteTransition(label = "recording")
+    val recordingAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
 
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
@@ -87,6 +170,7 @@ fun LensApp(viewModel: LensViewModel) {
             }
         }
         val filter = IntentFilter(AudioCaptureService.ACTION_FINISHED)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
         } else {
@@ -94,7 +178,9 @@ fun LensApp(viewModel: LensViewModel) {
         }
 
         onDispose {
-            context.unregisterReceiver(receiver)
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {}
         }
     }
 
@@ -126,11 +212,7 @@ fun LensApp(viewModel: LensViewModel) {
                 putExtra(AudioCaptureService.EXTRA_RESULT_DATA, result.data)
                 putExtra(AudioCaptureService.EXTRA_FILE_PATH, audioFile.absolutePath)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
+            context.startForegroundService(serviceIntent)
             isRecording = true
         } else {
             Toast.makeText(context, "System audio permission denied. Recording cancelled.", Toast.LENGTH_SHORT).show()
@@ -180,269 +262,419 @@ fun LensApp(viewModel: LensViewModel) {
     }
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Lens", style = MaterialTheme.typography.titleMedium) },
-                actions = {
-                    IconButton(onClick = { showHistory = true }) {
-                        Icon(Icons.Default.History, contentDescription = "History")
-                    }
-                    IconButton(onClick = { showConfig = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
-                    }
-                },
-                windowInsets = WindowInsets(0, 0, 0, 0)
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { viewModel.translateText(inputText) },
+                icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                text = { Text("Translate") },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = { inputText = it },
-                label = { Text("Enter text to translate (${config.preferredProvider.name})") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Button(
-                    onClick = { viewModel.translateText(inputText) },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Translate", maxLines = 1)
-                }
-                
-                Button(
-                    onClick = { showCamera = true },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Camera", maxLines = 1)
-                }
-                
-                Button(
-                    onClick = { imagePickerLauncher.launch("image/*") },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text("Gallery", maxLines = 1)
-                }
-                
-                Button(
-                    onClick = {
-                        if (isRecording) {
-                            val serviceIntent = Intent(context, AudioCaptureService::class.java).apply {
-                                action = AudioCaptureService.ACTION_STOP
-                            }
-                            context.startService(serviceIntent)
-                        } else {
-                            val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                            
-                            val allGranted = permissions.all {
-                                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-                            }
-
-                            if (allGranted) {
-                                val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                                mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
-                            } else {
-                                permissionLauncher.launch(permissions.toTypedArray())
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = if (isRecording) ButtonDefaults.buttonColors(containerColor = Color.Red) else ButtonDefaults.buttonColors(),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text(if (isRecording) "Stop" else "Audio", maxLines = 1)
-                }
-            }
-
-            if (translationResult.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
-            }
-
-            translationResult.error?.let {
-                Text("Error: $it", color = MaterialTheme.colorScheme.error)
-            }
-
-            if (translationResult.translatedText.isNotEmpty()) {
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .padding(top = 8.dp, bottom = 16.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = null
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "Translation:",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        val annotatedText = buildAnnotatedString {
-                            val words = translationResult.translatedText.split(Regex("\\s+"))
-                            words.forEachIndexed { index, word ->
-                                val cleanWord = word.filter { it.isLetterOrDigit() }
-                                pushStringAnnotation(tag = "WORD", annotation = cleanWord)
-                                withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) {
-                                    append(word)
-                                }
-                                pop()
-                                if (index < words.size - 1) append(" ")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Filled.Language, 
+                                contentDescription = null, 
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Auto Detect → ${config.targetLanguage}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            
+                            Spacer(modifier = Modifier.weight(1f))
+                            
+                            IconButton(onClick = { showHistory = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Filled.History, contentDescription = "History", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { showConfig = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Filled.Settings, contentDescription = "Settings", modifier = Modifier.size(20.dp))
                             }
                         }
-
-                        ClickableText(
-                            text = annotatedText,
-                            onClick = { offset ->
-                                annotatedText.getStringAnnotations(tag = "WORD", start = offset, end = offset)
-                                    .firstOrNull()?.let { annotation ->
-                                        viewModel.explainWord(annotation.item)
+                        
+                        TextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = { Text("Enter text to translate...", style = MaterialTheme.typography.bodyLarge) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                errorContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent
+                            ),
+                            trailingIcon = {
+                                if (inputText.isNotEmpty()) {
+                                    IconButton(onClick = { inputText = "" }) {
+                                        Icon(Icons.Filled.Clear, contentDescription = "Clear")
                                     }
+                                }
                             },
-                            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
+                            textStyle = MaterialTheme.typography.bodyLarge,
+                            minLines = 4
                         )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    QuickAction(
+                        icon = Icons.Filled.CameraAlt,
+                        label = "Camera",
+                        onClick = { showCamera = true }
+                    )
+                    QuickAction(
+                        icon = Icons.Filled.PhotoLibrary,
+                        label = "Gallery",
+                        onClick = { imagePickerLauncher.launch("image/*") }
+                    )
+                    QuickAction(
+                        icon = if (isRecording) Icons.Filled.StopCircle else Icons.Filled.Mic,
+                        label = if (isRecording) "Stop" else "Audio",
+                        iconColor = if (isRecording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        modifier = if (isRecording) Modifier.alpha(recordingAlpha) else Modifier,
+                        onClick = {
+                            if (isRecording) {
+                                val serviceIntent = Intent(context, AudioCaptureService::class.java).apply {
+                                    action = AudioCaptureService.ACTION_STOP
+                                }
+                                context.startService(serviceIntent)
+                            } else {
+                                val permissions = mutableListOf(Manifest.permission.RECORD_AUDIO)
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                                }
+                                
+                                val allGranted = permissions.all {
+                                    ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+                                }
+
+                                if (allGranted) {
+                                    val mpManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                    mediaProjectionLauncher.launch(mpManager.createScreenCaptureIntent())
+                                } else {
+                                    permissionLauncher.launch(permissions.toTypedArray())
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (translationResult.isLoading) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp)
+                            .clip(CircleShape)
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = translationResult.error != null,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    translationResult.error?.let {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            modifier = Modifier.padding(top = 16.dp)
+                        ) {
+                            Text(
+                                "Error: $it",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
+                AnimatedVisibility(
+                    visible = translationResult.translatedText.isNotEmpty(),
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 80.dp), // Spacing for FAB
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Translation",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                IconButton(
+                                    onClick = { 
+                                        clipboardManager.setText(AnnotatedString(translationResult.translatedText))
+                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.ContentCopy,
+                                        contentDescription = "Copy",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            SelectionContainer {
+                                val primaryColor = MaterialTheme.colorScheme.primary
+                                val annotatedText = buildAnnotatedString {
+                                    val words = translationResult.translatedText.split(Regex("\\s+"))
+                                    words.forEachIndexed { index, word ->
+                                        val cleanWord = word.filter { it.isLetterOrDigit() }
+                                        
+                                        val link = LinkAnnotation.Clickable(
+                                            tag = "WORD_EXPLAIN",
+                                            styles = TextLinkStyles(style = SpanStyle(color = primaryColor, fontWeight = FontWeight.Bold)),
+                                            linkInteractionListener = { 
+                                                viewModel.explainWord(cleanWord)
+                                            }
+                                        )
+                                        
+                                        withLink(link) {
+                                            append(word)
+                                        }
+
+                                        if (index < words.size - 1) append(" ")
+                                    }
+                                }
+
+                                Text(
+                                    text = annotatedText,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        lineHeight = 28.sp,
+                                        fontSize = 18.sp
+                                    )
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Tap a word for explanation",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
                     }
                 }
             }
         }
 
         if (showConfig) {
-            ConfigDialog(
-                config = config,
-                onDismiss = { showConfig = false },
-                onSave = {
-                    viewModel.updateConfig(it)
-                    showConfig = false
-                }
-            )
+            ModalBottomSheet(
+                onDismissRequest = { showConfig = false },
+                sheetState = sheetState
+            ) {
+                ConfigSheetContent(
+                    config = config,
+                    onSave = {
+                        viewModel.updateConfig(it)
+                        showConfig = false
+                    }
+                )
+            }
         }
 
         if (showHistory) {
-            HistoryDialog(
-                history = history,
-                onDismiss = { showHistory = false },
-                onSelectItem = {
-                    viewModel.selectHistoryItem(it)
-                    if (it.originalText != "[Image]" && it.originalText != "[Audio]") {
-                        inputText = it.originalText
-                    }
-                    showHistory = false
-                },
-                onDeleteItem = {
-                    viewModel.deleteHistoryItem(it.id)
-                },
-                onClearHistory = {
-                    viewModel.clearHistory()
-                }
-            )
+            ModalBottomSheet(
+                onDismissRequest = { showHistory = false },
+                sheetState = sheetState
+            ) {
+                HistorySheetContent(
+                    history = history,
+                    onSelectItem = {
+                        viewModel.selectHistoryItem(it)
+                        if (it.originalText != "[Image]" && it.originalText != "[Audio]") {
+                            inputText = it.originalText
+                        }
+                        showHistory = false
+                    },
+                    onDeleteItem = { viewModel.deleteHistoryItem(it.id) },
+                    onClearHistory = { viewModel.clearHistory() }
+                )
+            }
         }
 
         explanation?.let {
             AlertDialog(
                 onDismissRequest = { viewModel.clearExplanation() },
+                icon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                title = { Text("Word Explanation") },
                 text = { Text(it) },
                 confirmButton = {
                     TextButton(onClick = { viewModel.clearExplanation() }) {
-                        Text("Close")
+                        Text("Got it")
                     }
-                }
+                },
+                shape = RoundedCornerShape(28.dp)
             )
         }
     }
 }
 
-fun getUriOrientation(context: Context, uri: Uri): Float {
-    var inputStream: InputStream? = null
-    try {
-        inputStream = context.contentResolver.openInputStream(uri)
-        val exifInterface = inputStream?.let { ExifInterface(it) }
-        val orientation = exifInterface?.getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        ) ?: ExifInterface.ORIENTATION_NORMAL
-        return when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> 0f
+@Composable
+fun QuickAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconColor: Color = MaterialTheme.colorScheme.primary
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = iconColor.copy(alpha = 0.1f),
+            modifier = Modifier.size(48.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = label, tint = iconColor)
+            }
         }
-    } catch (e: Exception) {
-        return 0f
-    } finally {
-        inputStream?.close()
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
 
 @Composable
-fun HistoryDialog(
+fun HistorySheetContent(
     history: List<HistoryItem>,
-    onDismiss: () -> Unit,
     onSelectItem: (HistoryItem) -> Unit,
     onDeleteItem: (HistoryItem) -> Unit,
     onClearHistory: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("History")
-                if (history.isNotEmpty()) {
-                    IconButton(onClick = onClearHistory) {
-                        Icon(Icons.Default.Delete, contentDescription = "Clear All History")
-                    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Recent Translations",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            if (history.isNotEmpty()) {
+                TextButton(onClick = onClearHistory) {
+                    Text("Clear all", color = MaterialTheme.colorScheme.error)
                 }
             }
-        },
-        text = {
-            if (history.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                    Text("No history yet")
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (history.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Filled.History,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                    Text(
+                        "No history yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    items(history, key = { it.id }) { item ->
+            }
+        } else {
+            LazyColumn {
+                items(history, key = { it.id }) { item ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { onSelectItem(item) },
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                    ) {
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectItem(item) }
-                                .padding(vertical = 8.dp),
+                                .padding(12.dp)
+                                .fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (item.originalText.length > 50) item.originalText.take(50) + "..." else item.originalText,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.secondary,
+                                    text = item.originalText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = item.translatedText,
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.Medium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -450,35 +682,29 @@ fun HistoryDialog(
                                 Text(
                                     text = date,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.outlineVariant
                                 )
                             }
                             IconButton(onClick = { onDeleteItem(item) }) {
                                 Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Delete item",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp)
+                                    Icons.Filled.Close,
+                                    contentDescription = "Delete",
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
-                        HorizontalDivider()
                     }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close")
-            }
         }
-    )
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConfigDialog(
+fun ConfigSheetContent(
     config: Config,
-    onDismiss: () -> Unit,
     onSave: (Config) -> Unit
 ) {
     var geminiKey by remember { mutableStateOf(config.geminiApiKey) }
@@ -498,89 +724,92 @@ fun ConfigDialog(
     var openRouterKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
-        GeminiModelOption("gemini-3.1-pro", "Gemini 3.1 Pro"),
-        GeminiModelOption("gemini-3.0-flash", "Gemini 3.0 Flash"),
-        GeminiModelOption("gemini-3.0-flash-lite", "Gemini 3.0 Flash Lite"),
-        GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
-        GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
-        GeminiModelOption("gemini-2.5-flash-lite", "Gemini 2.5 Flash Lite"),
-        GeminiModelOption("gemini-2.0-flash", "Gemini 2.0 Flash"),
-        GeminiModelOption("gemini-2.0-flash-lite", "Gemini 2.0 Flash Lite"),
-        GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT")
+        GeminiModelOption("gemini-1.5-pro", "Gemini 1.5 Pro"),
+        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash"),
+        GeminiModelOption("gemini-2.0-flash-exp", "Gemini 2.0 Flash (Exp)")
     )
     val groqModels = listOf("llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768")
-    val openRouterModels = listOf("google/gemma-4-31b-it:free", "openrouter/auto")
+    val openRouterModels = listOf("google/gemma-2-9b-it:free", "openrouter/auto")
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Settings") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                ModelDropdown(
-                    label = "Preferred Provider",
-                    selectedModel = preferredProvider.name,
-                    models = TranslationProvider.values().map { it.name }
-                ) { preferredProvider = TranslationProvider.valueOf(it) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 32.dp)
+    ) {
+        Text(
+            "Settings",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
+        Text("General", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        ModelDropdown(
+            label = "Preferred Provider",
+            selectedModel = preferredProvider.name,
+            models = TranslationProvider.entries.map { it.name }
+        ) { preferredProvider = TranslationProvider.valueOf(it) }
 
-                OutlinedTextField(
-                    value = geminiKey,
-                    onValueChange = { geminiKey = it },
-                    label = { Text("Gemini API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (geminiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (geminiKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { geminiKeyVisible = !geminiKeyVisible }) {
-                            Icon(icon, contentDescription = "Toggle visibility")
-                        }
-                    }
-                )
-                ModelOptionDropdown(label = "Gemini Model", selectedModelValue = geminiModel, options = geminiModels) { geminiModel = it }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                OutlinedTextField(
-                    value = groqKey,
-                    onValueChange = { groqKey = it },
-                    label = { Text("Groq API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (groqKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (groqKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { groqKeyVisible = !groqKeyVisible }) {
-                            Icon(icon, contentDescription = "Toggle visibility")
-                        }
-                    }
-                )
-                ModelDropdown(label = "Groq Model", selectedModel = groqModel, models = groqModels) { groqModel = it }
+        OutlinedTextField(
+            value = targetLang, 
+            onValueChange = { targetLang = it }, 
+            label = { Text("Target Language") }, 
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = RoundedCornerShape(12.dp)
+        )
+        OutlinedTextField(
+            value = explainLang, 
+            onValueChange = { explainLang = it }, 
+            label = { Text("Explanation Language") }, 
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            shape = RoundedCornerShape(12.dp)
+        )
 
-                Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("API Credentials", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        ApiKeyField(
+            label = "Gemini API Key",
+            value = geminiKey,
+            onValueChange = { geminiKey = it },
+            visible = geminiKeyVisible,
+            onToggleVisibility = { geminiKeyVisible = !geminiKeyVisible }
+        )
+        ModelOptionDropdown(label = "Gemini Model", selectedModelValue = geminiModel, options = geminiModels) { geminiModel = it }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        ApiKeyField(
+            label = "Groq API Key",
+            value = groqKey,
+            onValueChange = { groqKey = it },
+            visible = groqKeyVisible,
+            onToggleVisibility = { groqKeyVisible = !groqKeyVisible }
+        )
+        ModelDropdown(label = "Groq Model", selectedModel = groqModel, models = groqModels) { groqModel = it }
 
-                OutlinedTextField(
-                    value = openRouterKey,
-                    onValueChange = { openRouterKey = it },
-                    label = { Text("OpenRouter API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    visualTransformation = if (openRouterKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        val icon = if (openRouterKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
-                        IconButton(onClick = { openRouterKeyVisible = !openRouterKeyVisible }) {
-                            Icon(icon, contentDescription = "Toggle visibility")
-                        }
-                    }
-                )
-                ModelDropdown(label = "OpenRouter Model", selectedModel = openRouterModel, models = openRouterModels) { openRouterModel = it }
+        Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+        ApiKeyField(
+            label = "OpenRouter API Key",
+            value = openRouterKey,
+            onValueChange = { openRouterKey = it },
+            visible = openRouterKeyVisible,
+            onToggleVisibility = { openRouterKeyVisible = !openRouterKeyVisible }
+        )
+        ModelDropdown(label = "OpenRouter Model", selectedModel = openRouterModel, models = openRouterModels) { openRouterModel = it }
 
-                OutlinedTextField(value = targetLang, onValueChange = { targetLang = it }, label = { Text("Target Language") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = explainLang, onValueChange = { explainLang = it }, label = { Text("Explanation Language (3rd)") }, modifier = Modifier.fillMaxWidth())
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Button(
+            onClick = {
                 onSave(Config(
                     geminiApiKey = geminiKey,
                     groqApiKey = groqKey,
@@ -592,16 +821,60 @@ fun ConfigDialog(
                     explanationLanguage = explainLang,
                     preferredProvider = preferredProvider
                 ))
-            }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            Text("Save Settings")
+        }
+    }
+}
+
+@Composable
+fun ApiKeyField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    visible: Boolean,
+    onToggleVisibility: () -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            val icon = if (visible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+            IconButton(onClick = onToggleVisibility) {
+                Icon(icon, contentDescription = "Toggle visibility")
             }
         }
     )
+}
+
+fun getUriOrientation(context: Context, uri: Uri): Float {
+    var inputStream: InputStream? = null
+    try {
+        inputStream = context.contentResolver.openInputStream(uri)
+        val exifInterface = inputStream?.let { ExifInterface(it) }
+        val orientation = exifInterface?.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        ) ?: ExifInterface.ORIENTATION_NORMAL
+        return when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+    } catch (_: Exception) {
+        return 0f
+    } finally {
+        try { inputStream?.close() } catch (_: Exception) {}
+    }
 }
 
 @Composable
@@ -616,8 +889,11 @@ fun ModelOptionDropdown(label: String, selectedModelValue: String, options: List
             label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
             readOnly = true,
+            shape = RoundedCornerShape(12.dp),
             trailingIcon = {
-                Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown", modifier = Modifier.clickable { expanded = true })
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = "Dropdown")
+                }
             }
         )
         DropdownMenu(
@@ -649,8 +925,11 @@ fun ModelDropdown(label: String, selectedModel: String, models: List<String>, on
             label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
             readOnly = true,
+            shape = RoundedCornerShape(12.dp),
             trailingIcon = {
-                Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown", modifier = Modifier.clickable { expanded = true })
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Filled.ArrowDropDown, contentDescription = "Dropdown")
+                }
             }
         )
         DropdownMenu(

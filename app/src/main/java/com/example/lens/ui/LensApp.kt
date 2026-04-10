@@ -551,8 +551,6 @@ fun LensApp(viewModel: LensViewModel) {
         explanation?.let {
             AlertDialog(
                 onDismissRequest = { viewModel.clearExplanation() },
-                icon = { Icon(Icons.Filled.Info, contentDescription = null) },
-                title = { Text("Word Explanation") },
                 text = { Text(it) },
                 confirmButton = {
                     TextButton(onClick = { viewModel.clearExplanation() }) {
@@ -724,12 +722,51 @@ fun ConfigSheetContent(
     var openRouterKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
+        GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT"),
+        GeminiModelOption("gemma-3-27b", "Gemma 3 27B"),
+        GeminiModelOption("gemma-3-12b", "Gemma 3 12B"),
+        GeminiModelOption("gemma-3-4b", "Gemma 3 4B"),
+        GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
+        GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
+        GeminiModelOption("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"),
+        GeminiModelOption("gemini-2.0-flash", "Gemini 2.0 Flash"),
+        GeminiModelOption("gemini-2.0-flash-lite-preview-02-05", "Gemini 2.0 Flash-Lite"),
+        GeminiModelOption("gemini-2.0-pro-exp-02-05", "Gemini 2.0 Pro (Exp)"),
         GeminiModelOption("gemini-1.5-pro", "Gemini 1.5 Pro"),
-        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash"),
-        GeminiModelOption("gemini-2.0-flash-exp", "Gemini 2.0 Flash (Exp)")
+        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash")
     )
-    val groqModels = listOf("llama-3.3-70b-versatile", "llama3-8b-8192", "mixtral-8x7b-32768")
-    val openRouterModels = listOf("google/gemma-2-9b-it:free", "openrouter/auto")
+    val groqModels = listOf(
+        "llama-3.3-70b-versatile", 
+        "llama-3.2-11b-vision-preview",
+        "llama-3.2-3b-preview",
+        "llama-3.2-1b-preview",
+        "llama-3.1-8b-instant",
+        "llama3-70b-8192",
+        "llama3-8b-8192",
+        "mixtral-8x7b-32768",
+        "gemma2-9b-it",
+        "deepseek-r1-distill-llama-70b",
+        "deepseek-r1-distill-qwen-32b"
+    )
+    val openRouterModels = listOf(
+        "google/gemma-4-31b-it:free",
+        "google/gemini-2.0-flash-001",
+        "google/gemini-2.0-pro-exp-02-05:free",
+        "google/gemma-3-27b-it:free",
+        "google/gemma-7b-it:free",
+        "google/gemma-2-9b-it:free",
+        "meta-llama/llama-3.3-70b-instruct",
+        "meta-llama/llama-3.1-8b-instruct:free",
+        "meta-llama/llama-3.2-1b-instruct:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "mistralai/pixtral-12b:free",
+        "qwen/qwen-2-7b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+        "qwen/qwen-2-vl-7b-instruct:free",
+        "gryphe/mythomist-7b:free",
+        "openrouter/auto"
+    )
 
     Column(
         modifier = Modifier

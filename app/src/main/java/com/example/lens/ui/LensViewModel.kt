@@ -1,7 +1,6 @@
 package com.example.lens.ui
 
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.lens.api.TranslationService
@@ -67,8 +66,11 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
-                // Currently only Gemini supports images in this app's implementation
-                val result = translationService.translateWithGemini("", bitmap, null, _config.value)
+                val result = when (_config.value.preferredProvider) {
+                    TranslationProvider.GEMINI -> translationService.translateWithGemini("", bitmap, null, _config.value)
+                    TranslationProvider.GROQ -> translationService.translateImageWithGroq(bitmap, _config.value)
+                    TranslationProvider.OPENROUTER -> translationService.translateImageWithOpenRouter(bitmap, _config.value)
+                }
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
                 addToHistory("[Image]", result)
             } catch (e: Exception) {
@@ -81,8 +83,11 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
-                // Currently only Gemini supports audio in this app's implementation
-                val result = translationService.translateWithGemini("", null, file, _config.value)
+                val result = when (_config.value.preferredProvider) {
+                    TranslationProvider.GEMINI -> translationService.translateWithGemini("", null, file, _config.value)
+                    TranslationProvider.GROQ -> translationService.translateAudioWithGroq(file, _config.value)
+                    TranslationProvider.OPENROUTER -> translationService.translateAudioWithOpenRouter(file, _config.value)
+                }
                 _translationResult.update { it.copy(translatedText = result, isLoading = false) }
                 addToHistory("[Audio]", result)
             } catch (e: Exception) {

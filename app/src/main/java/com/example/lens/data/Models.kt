@@ -14,9 +14,9 @@ data class Config(
     val geminiApiKey: String = "",
     val groqApiKey: String = "",
     val openRouterApiKey: String = "",
-    val geminiModel: String = "gemini-2.5-flash",
-    val groqModel: String = "llama-3.3-70b-versatile",
-    val openRouterModel: String = "google/gemma-4-31b-it:free",
+    val geminiModel: String = "gemini-2.0-flash",
+    val groqModel: String = "llama-3.2-11b-vision-preview",
+    val openRouterModel: String = "google/gemini-2.0-flash-001",
     val targetLanguage: String = "English",
     val explanationLanguage: String = "Farsi",
     val preferredProvider: TranslationProvider = TranslationProvider.GEMINI

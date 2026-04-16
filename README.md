@@ -1,5 +1,6 @@
 # Lens
-This application is written by AI
+This application is written by AI.
+
 Lens is a powerful, multi-modal translation app for Android that leverages advanced AI models to translate text, images, and audio in real-time. Built with modern Android development practices, it provides a seamless experience for understanding content across different languages and formats.
 
 ## Features

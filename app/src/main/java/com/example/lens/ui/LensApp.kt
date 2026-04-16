@@ -51,21 +51,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -313,6 +313,44 @@ fun LensApp(viewModel: LensViewModel) {
                             )
                             
                             Spacer(modifier = Modifier.weight(1f))
+
+                            var providerExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { providerExpanded = true }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        config.preferredProvider.name,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Icon(
+                                        Icons.Filled.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = providerExpanded,
+                                    onDismissRequest = { providerExpanded = false }
+                                ) {
+                                    TranslationProvider.entries.forEach { provider ->
+                                        DropdownMenuItem(
+                                            text = { Text(provider.name) },
+                                            onClick = {
+                                                viewModel.updateConfig(config.copy(preferredProvider = provider))
+                                                providerExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                             
                             IconButton(onClick = { showHistory = true }, modifier = Modifier.size(32.dp)) {
                                 Icon(Icons.Filled.History, contentDescription = "History", modifier = Modifier.size(20.dp))
@@ -417,11 +455,21 @@ fun LensApp(viewModel: LensViewModel) {
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                             modifier = Modifier.padding(top = 16.dp)
                         ) {
-                            Text(
-                                "Error: $it",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Error: $it",
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.retry() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                ) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Retry")
+                                }
+                            }
                         }
                     }
                 }
@@ -452,18 +500,30 @@ fun LensApp(viewModel: LensViewModel) {
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.Bold
                                 )
-                                IconButton(
-                                    onClick = { 
-                                        clipboardManager.setText(AnnotatedString(translationResult.translatedText))
-                                        Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.ContentCopy,
-                                        contentDescription = "Copy",
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                Row {
+                                    IconButton(
+                                        onClick = { viewModel.retry() },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Refresh,
+                                            contentDescription = "Retry",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { 
+                                            clipboardManager.setText(AnnotatedString(translationResult.translatedText))
+                                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.ContentCopy,
+                                            contentDescription = "Copy",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                             
@@ -715,7 +775,6 @@ fun ConfigSheetContent(
     
     var targetLang by remember { mutableStateOf(config.targetLanguage) }
     var explainLang by remember { mutableStateOf(config.explanationLanguage) }
-    var preferredProvider by remember { mutableStateOf(config.preferredProvider) }
 
     var geminiKeyVisible by remember { mutableStateOf(false) }
     var groqKeyVisible by remember { mutableStateOf(false) }
@@ -786,12 +845,6 @@ fun ConfigSheetContent(
         Text("General", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
         
-        ModelDropdown(
-            label = "Preferred Provider",
-            selectedModel = preferredProvider.name,
-            models = TranslationProvider.entries.map { it.name }
-        ) { preferredProvider = TranslationProvider.valueOf(it) }
-
         OutlinedTextField(
             value = targetLang, 
             onValueChange = { targetLang = it }, 
@@ -856,7 +909,7 @@ fun ConfigSheetContent(
                     openRouterModel = openRouterModel,
                     targetLanguage = targetLang,
                     explanationLanguage = explainLang,
-                    preferredProvider = preferredProvider
+                    preferredProvider = config.preferredProvider
                 ))
             },
             modifier = Modifier.fillMaxWidth(),

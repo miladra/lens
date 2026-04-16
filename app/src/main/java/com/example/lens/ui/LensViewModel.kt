@@ -16,6 +16,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 
+sealed class LastRequest {
+    data class Text(val text: String) : LastRequest()
+    data class Image(val bitmap: Bitmap) : LastRequest()
+    data class Audio(val file: File) : LastRequest()
+}
+
 class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
 
     private val translationService = TranslationService()
@@ -32,6 +38,8 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
     private val _history = MutableStateFlow(configStore.getHistory())
     val history: StateFlow<List<HistoryItem>> = _history.asStateFlow()
 
+    private var lastRequest: LastRequest? = null
+
     fun updateConfig(newConfig: Config) {
         _config.value = newConfig
         configStore.saveConfig(newConfig)
@@ -43,8 +51,19 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         _history.value = configStore.getHistory()
     }
 
+    fun retry() {
+        lastRequest?.let {
+            when (it) {
+                is LastRequest.Text -> translateText(it.text)
+                is LastRequest.Image -> translateImage(it.bitmap)
+                is LastRequest.Audio -> translateAudio(it.file)
+            }
+        }
+    }
+
     fun translateText(text: String) {
         if (text.isBlank()) return
+        lastRequest = LastRequest.Text(text)
         
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
@@ -63,6 +82,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
     }
 
     fun translateImage(bitmap: Bitmap) {
+        lastRequest = LastRequest.Image(bitmap)
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {
@@ -80,6 +100,7 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
     }
 
     fun translateAudio(file: File) {
+        lastRequest = LastRequest.Audio(file)
         viewModelScope.launch {
             _translationResult.update { it.copy(isLoading = true, error = null) }
             try {

@@ -782,17 +782,25 @@ fun ConfigSheetContent(
 
     val geminiModels = listOf(
         GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT"),
-        GeminiModelOption("gemma-3-27b", "Gemma 3 27B"),
-        GeminiModelOption("gemma-3-12b", "Gemma 3 12B"),
-        GeminiModelOption("gemma-3-4b", "Gemma 3 4B"),
+
+        GeminiModelOption("gemini-3-pro", "Gemini 3 Pro"),
+        GeminiModelOption("gemini-3.1-flash", "Gemini 3.1 Flash"),
+        GeminiModelOption("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite"),
+
         GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
         GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
         GeminiModelOption("gemini-2.5-flash-lite", "Gemini 2.5 Flash-Lite"),
+
         GeminiModelOption("gemini-2.0-flash", "Gemini 2.0 Flash"),
         GeminiModelOption("gemini-2.0-flash-lite-preview-02-05", "Gemini 2.0 Flash-Lite"),
         GeminiModelOption("gemini-2.0-pro-exp-02-05", "Gemini 2.0 Pro (Exp)"),
+
         GeminiModelOption("gemini-1.5-pro", "Gemini 1.5 Pro"),
-        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash")
+        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash"),
+
+        GeminiModelOption("gemma-3-27b", "Gemma 3 27B"),
+        GeminiModelOption("gemma-3-12b", "Gemma 3 12B"),
+        GeminiModelOption("gemma-3-4b", "Gemma 3 4B"),
     )
     val groqModels = listOf(
         "llama-3.3-70b-versatile", 
@@ -808,8 +816,9 @@ fun ConfigSheetContent(
         "deepseek-r1-distill-qwen-32b"
     )
     val openRouterModels = listOf(
+        "openrouter/auto",
+        "openai/gpt-oss-20b:free",
         "google/gemma-4-31b-it:free",
-        "google/gemini-2.0-flash-001",
         "google/gemini-2.0-pro-exp-02-05:free",
         "google/gemma-3-27b-it:free",
         "google/gemma-7b-it:free",
@@ -823,8 +832,7 @@ fun ConfigSheetContent(
         "qwen/qwen-2-7b-instruct:free",
         "qwen/qwen-2.5-72b-instruct:free",
         "qwen/qwen-2-vl-7b-instruct:free",
-        "gryphe/mythomist-7b:free",
-        "openrouter/auto"
+        "gryphe/mythomist-7b:free"
     )
 
     Column(

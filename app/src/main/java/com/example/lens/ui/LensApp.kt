@@ -781,11 +781,12 @@ fun ConfigSheetContent(
     var openRouterKeyVisible by remember { mutableStateOf(false) }
 
     val geminiModels = listOf(
-        GeminiModelOption("gemma-3-27b-it", "Gemma 3 27B IT"),
+        GeminiModelOption("gemma-4-31b-it", "Gemma 4 31B"),
+        GeminiModelOption("gemma-4-26b-a4b-it", "Gemma 4 26B"),
 
-        GeminiModelOption("gemini-3-pro", "Gemini 3 Pro"),
-        GeminiModelOption("gemini-3.1-flash", "Gemini 3.1 Flash"),
-        GeminiModelOption("gemini-3.1-flash-lite", "Gemini 3.1 Flash-Lite"),
+        GeminiModelOption("gemini-3.1-pro-preview", "Gemini 3 Pro"),
+        GeminiModelOption("gemini-3-flash-preview", "Gemini 3.1 Flash"),
+        GeminiModelOption("gemini-3.1-flash-lite-preview", "Gemini 3.1 Flash-Lite"),
 
         GeminiModelOption("gemini-2.5-pro", "Gemini 2.5 Pro"),
         GeminiModelOption("gemini-2.5-flash", "Gemini 2.5 Flash"),
@@ -796,11 +797,7 @@ fun ConfigSheetContent(
         GeminiModelOption("gemini-2.0-pro-exp-02-05", "Gemini 2.0 Pro (Exp)"),
 
         GeminiModelOption("gemini-1.5-pro", "Gemini 1.5 Pro"),
-        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash"),
-
-        GeminiModelOption("gemma-3-27b", "Gemma 3 27B"),
-        GeminiModelOption("gemma-3-12b", "Gemma 3 12B"),
-        GeminiModelOption("gemma-3-4b", "Gemma 3 4B"),
+        GeminiModelOption("gemini-1.5-flash", "Gemini 1.5 Flash")
     )
     val groqModels = listOf(
         "llama-3.3-70b-versatile", 

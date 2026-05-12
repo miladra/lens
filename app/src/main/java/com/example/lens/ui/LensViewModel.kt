@@ -135,6 +135,10 @@ class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
         _translationResult.update { it.copy(translatedText = item.translatedText, isLoading = false, error = null) }
     }
 
+    fun setTranslatedText(text: String) {
+        _translationResult.update { it.copy(translatedText = text, isLoading = false, error = null) }
+    }
+
     fun clearExplanation() {
         _explanation.value = null
     }

@@ -50,6 +50,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -376,9 +377,17 @@ fun LensApp(viewModel: LensViewModel) {
                                 errorIndicatorColor = Color.Transparent
                             ),
                             trailingIcon = {
-                                if (inputText.isNotEmpty()) {
-                                    IconButton(onClick = { inputText = "" }) {
-                                        Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                                Row {
+                                    if (inputText.isNotEmpty()) {
+                                        IconButton(onClick = {
+                                            viewModel.setTranslatedText(inputText)
+                                            inputText = ""
+                                        }) {
+                                            Icon(Icons.Filled.ArrowDownward, contentDescription = "Move to Result")
+                                        }
+                                        IconButton(onClick = { inputText = "" }) {
+                                            Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                                        }
                                     }
                                 }
                             },

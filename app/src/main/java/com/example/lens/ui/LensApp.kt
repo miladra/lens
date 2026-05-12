@@ -814,8 +814,10 @@ fun ConfigSheetContent(
     )
     val openRouterModels = listOf(
         "openrouter/auto",
-        "openai/gpt-oss-20b:free",
+        "openrouter/free",
         "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "openai/gpt-oss-20b:free",
         "google/gemini-2.0-pro-exp-02-05:free",
         "google/gemma-3-27b-it:free",
         "google/gemma-7b-it:free",

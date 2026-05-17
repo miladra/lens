@@ -131,19 +131,39 @@ class AudioCaptureService : Service() {
         }
         mediaProjection = projection
 
+        // Register callback to handle projection stop
+        projection.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() {
+                Log.d("AudioCaptureService", "MediaProjection stopped")
+                stopRecording()
+            }
+        }, Handler(Looper.getMainLooper()))
+
         val format = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .setSampleRate(SAMPLE_RATE)
             .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
             .build()
 
+        // System audio is natively Stereo on most devices; capturing in Mono can fail on some hardware with headphones
+        val sysFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            AudioFormat.Builder()
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setSampleRate(SAMPLE_RATE)
+                .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
+                .build()
+        } else format
+
         val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
             .let { if (it > 0) Math.max(it, DEFAULT_BUFFER_SIZE) else DEFAULT_BUFFER_SIZE }
+        
+        val sysBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT)
+            .let { if (it > 0) Math.max(it, DEFAULT_BUFFER_SIZE * 2) else DEFAULT_BUFFER_SIZE * 2 }
 
         // Initialize Microphone - Use standard constructor for better compatibility
         try {
             audioRecordMic = AudioRecord(
-                MediaRecorder.AudioSource.MIC,
+                MediaRecorder.AudioSource.VOICE_RECOGNITION,
                 SAMPLE_RATE,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -169,12 +189,18 @@ class AudioCaptureService : Service() {
                 val config = AudioPlaybackCaptureConfiguration.Builder(projection)
                     .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
                     .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN)
+                    .addMatchingUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .addMatchingUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .addMatchingUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .addMatchingUsage(AudioAttributes.USAGE_ALARM)
                     .build()
                 
                 audioRecordSystem = AudioRecord.Builder()
                     .setAudioPlaybackCaptureConfig(config)
-                    .setAudioFormat(format)
-                    .setBufferSizeInBytes(bufferSize)
+                    .setAudioFormat(sysFormat)
+                    .setBufferSizeInBytes(sysBufferSize)
                     .build()
                 
                 if (audioRecordSystem?.state == AudioRecord.STATE_INITIALIZED) {
@@ -190,26 +216,70 @@ class AudioCaptureService : Service() {
         
         thread {
             val micBuffer = ShortArray(bufferSize / 2)
-            val sysBuffer = ShortArray(bufferSize / 2)
+            val sysReadBuffer = ShortArray(sysBufferSize / 2)
+            
+            // Ring buffer for system audio to handle jitter and routing delays
+            val sysRingBuffer = ShortArray(sysBufferSize * 2)
+            var sysHead = 0
+            var sysTail = 0
+            var sysAvailable = 0
             
             try {
                 FileOutputStream(file).use { outputStream ->
                     outputStream.write(ByteArray(44)) // WAV Header placeholder
                     
                     while (isRecording) {
-                        val micRead = try { audioRecordMic?.read(micBuffer, 0, micBuffer.size) ?: 0 } catch(e: Exception) { 0 }
-                        val sysRead = try { audioRecordSystem?.read(sysBuffer, 0, sysBuffer.size) ?: 0 } catch(e: Exception) { 0 }
+                        // 1. Recover recording states if interrupted (e.g. by headphone plug-in)
+                        if (audioRecordMic?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                            try { audioRecordMic?.startRecording() } catch (e: Exception) {}
+                        }
+                        if (audioRecordSystem?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                            try { audioRecordSystem?.startRecording() } catch (e: Exception) {}
+                        }
+
+                        // 2. Capture available system audio into ring buffer
+                        val sysRead = try { 
+                            audioRecordSystem?.read(sysReadBuffer, 0, sysReadBuffer.size, AudioRecord.READ_NON_BLOCKING) ?: 0 
+                        } catch(e: Exception) { 0 }
                         
-                        val maxRead = Math.max(if (micRead > 0) micRead else 0, if (sysRead > 0) sysRead else 0)
-                        if (maxRead <= 0) {
+                        if (sysRead > 0) {
+                            // Downmix Stereo to Mono for the ring buffer
+                            for (i in 0 until sysRead step 2) {
+                                val left = sysReadBuffer[i].toInt()
+                                val right = if (i + 1 < sysRead) sysReadBuffer[i+1].toInt() else left
+                                val mono = ((left + right) / 2).toShort()
+                                sysRingBuffer[sysTail] = mono
+                                sysTail = (sysTail + 1) % sysRingBuffer.size
+                                if (sysAvailable < sysRingBuffer.size) sysAvailable++ else sysHead = (sysHead + 1) % sysRingBuffer.size
+                            }
+                        }
+
+                        // 3. Read Microphone (blocking read acts as master timing)
+                        val micRead = try { audioRecordMic?.read(micBuffer, 0, micBuffer.size) ?: 0 } catch(e: Exception) { 0 }
+                        
+                        if (micRead < 0) {
                             Thread.sleep(10)
                             continue
                         }
 
-                        val mixedBuffer = ByteArray(maxRead * 2)
-                        for (i in 0 until maxRead) {
-                            val m = if (micRead > 0 && i < micRead) micBuffer[i].toInt() else 0
-                            val s = if (sysRead > 0 && i < sysRead) sysBuffer[i].toInt() else 0
+                        val samplesToProcess = if (micRead > 0) micRead else 0
+                        if (samplesToProcess <= 0) {
+                            if (!isRecording) break
+                            Thread.sleep(5)
+                            continue
+                        }
+
+                        val mixedBuffer = ByteArray(samplesToProcess * 2)
+                        for (i in 0 until samplesToProcess) {
+                            val m = micBuffer[i].toInt()
+                            
+                            // Get corresponding system sample from ring buffer, or 0 if silence
+                            val s = if (sysAvailable > 0) {
+                                val sample = sysRingBuffer[sysHead].toInt()
+                                sysHead = (sysHead + 1) % sysRingBuffer.size
+                                sysAvailable--
+                                sample
+                            } else 0
                             
                             val mixed = (m + s).coerceIn(-32768, 32767).toShort()
                             
@@ -219,7 +289,8 @@ class AudioCaptureService : Service() {
                         outputStream.write(mixedBuffer)
                     }
                 }
-            } catch (e: Exception) {
+            }
+catch (e: Exception) {
                 Log.e("AudioCaptureService", "Error in recording loop", e)
             } finally {
                 finalizeWavFile(file)

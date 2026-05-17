@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -263,13 +264,15 @@ fun LensApp(viewModel: LensViewModel) {
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { viewModel.translateText(inputText) },
                 icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
                 text = { Text("Translate") },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.imePadding()
             )
         }
     ) { padding ->
@@ -277,6 +280,7 @@ fun LensApp(viewModel: LensViewModel) {
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .imePadding()
         ) {
             Column(
                 modifier = Modifier

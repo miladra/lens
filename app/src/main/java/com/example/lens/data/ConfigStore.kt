@@ -7,7 +7,7 @@ import com.google.gson.reflect.TypeToken
 
 class ConfigStore(context: Context) {
     private val sharedPreferences: SharedPreferences =
-        context.getSharedPreferences("lens_prefs", Context.MODE_PRIVATE)
+        context.getSharedPreferences("ailens_prefs", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     fun saveConfig(config: Config) {

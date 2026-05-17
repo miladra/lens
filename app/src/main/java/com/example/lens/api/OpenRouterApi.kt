@@ -49,8 +49,8 @@ interface OpenRouterApi {
     @POST("chat/completions")
     suspend fun getCompletion(
         @Header("Authorization") apiKey: String,
-        @Header("HTTP-Referer") referer: String = "Lens",
-        @Header("X-Title") title: String = "Lens",
+        @Header("HTTP-Referer") referer: String = "AiLens",
+        @Header("X-Title") title: String = "AiLens",
         @Body request: OpenRouterRequest
     ): OpenRouterResponse
 
@@ -58,8 +58,8 @@ interface OpenRouterApi {
     @POST("audio/translations")
     suspend fun translateAudio(
         @Header("Authorization") apiKey: String,
-        @Header("HTTP-Referer") referer: String = "Lens",
-        @Header("X-Title") title: String = "Lens",
+        @Header("HTTP-Referer") referer: String = "AiLens",
+        @Header("X-Title") title: String = "AiLens",
         @Part file: MultipartBody.Part,
         @Part("model") model: RequestBody
     ): OpenRouterTranscriptionResponse

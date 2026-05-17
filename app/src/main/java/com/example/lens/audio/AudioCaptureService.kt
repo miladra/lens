@@ -78,9 +78,9 @@ class AudioCaptureService : Service() {
         }
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Lens Recording")
+            .setContentTitle("AiLens Recording")
             .setContentText("Capturing audio for translation...")
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(com.example.lens.R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

@@ -9,9 +9,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.lens.data.ConfigStore
-import com.example.lens.ui.LensApp
-import com.example.lens.ui.LensViewModel
-import com.example.lens.ui.theme.LensTheme
+import com.example.lens.ui.AiLensApp
+import com.example.lens.ui.AiLensViewModel
+import com.example.lens.ui.theme.AiLensTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -43,20 +43,20 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            LensTheme {
+            AiLensTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val viewModel: LensViewModel = viewModel(
+                    val viewModel: AiLensViewModel = viewModel(
                         factory = object : ViewModelProvider.Factory {
                             @Suppress("UNCHECKED_CAST")
                             override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                                return LensViewModel(configStore) as T
+                                return AiLensViewModel(configStore) as T
                             }
                         }
                     )
-                    LensApp(viewModel)
+                    AiLensApp(viewModel)
                 }
             }
         }

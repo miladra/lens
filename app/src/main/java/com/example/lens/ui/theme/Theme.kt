@@ -24,7 +24,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun LensTheme(
+fun AiLensTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit

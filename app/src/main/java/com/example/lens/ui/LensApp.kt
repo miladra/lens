@@ -131,7 +131,7 @@ data class GeminiModelOption(val value: String, val label: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LensApp(viewModel: LensViewModel) {
+fun AiLensApp(viewModel: AiLensViewModel) {
     val config by viewModel.config.collectAsState()
     val translationResult by viewModel.translationResult.collectAsState()
     val explanation by viewModel.explanation.collectAsState()

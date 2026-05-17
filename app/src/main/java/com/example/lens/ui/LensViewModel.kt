@@ -22,7 +22,7 @@ sealed class LastRequest {
     data class Audio(val file: File) : LastRequest()
 }
 
-class LensViewModel(private val configStore: ConfigStore) : ViewModel() {
+class AiLensViewModel(private val configStore: ConfigStore) : ViewModel() {
 
     private val translationService = TranslationService()
 
